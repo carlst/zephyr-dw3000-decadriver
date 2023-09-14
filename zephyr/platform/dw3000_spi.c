@@ -8,6 +8,7 @@
 #include <drivers/spi.h>
 #include <logging/log.h>
 #include <zephyr/kernel.h>
+#include "version.h"
 
 #include "dw3000_spi.h"
 
@@ -21,7 +22,12 @@ LOG_MODULE_DECLARE(dw3000, CONFIG_DW3000_LOG_LEVEL);
 #define DW_SPI	DT_PARENT(DT_INST(0, decawave_dw3000))
 
 static const struct device* spi;
+#if KERNELVERSION >= ZEPHYR_VERSION(3,4,0)
+/* N.B. spi_config includes structure, not structure pointer */
+static struct spi_cs_control cs_ctrl = SPI_CS_CONTROL_INIT(DW_INST, 0);
+#else
 static struct spi_cs_control* cs_ctrl = SPI_CS_CONTROL_PTR_DT(DW_INST, 0);
+#endif
 static struct spi_config spi_cfgs[2] = {0}; // configs for slow and fast
 static struct spi_config* spi_cfg;
 
@@ -45,6 +51,7 @@ int dw3000_spi_init(void)
 	/* Due to the wiring of the Nordic Development Boards and the DWS3000
 	 * Arduino shield it is not possible to use more than 16MHz */
 	spi_cfgs[1].frequency = 16000000;
+	//spi_cfgs[1].frequency = 32000000;
 #else
 	spi_cfgs[1].frequency = 32000000;
 #endif
@@ -173,7 +180,13 @@ int dw3000_spi_read(uint16_t headerLength, uint8_t* headerBuffer,
 
 void dw3000_spi_wakeup()
 {
+#if KERNELVERSION >= ZEPHYR_VERSION(3,4,0)
+	gpio_pin_set_dt(&cs_ctrl.gpio, 1);
+	k_sleep(K_USEC(500));
+	gpio_pin_set_dt(&cs_ctrl.gpio, 0);
+#else
 	gpio_pin_set_dt(&cs_ctrl->gpio, 1);
 	k_sleep(K_USEC(500));
 	gpio_pin_set_dt(&cs_ctrl->gpio, 0);
+#endif
 }
